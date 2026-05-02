@@ -1,189 +1,189 @@
-# Day 25 — GitOps CD Pipeline: deploy to K8s via Helm
-name: CD — GitOps Deploy
-
-on:
-  push:
-    tags: [ 'v*.*.*' ]
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Target environment'
-        type: choice
-        options: [ staging, production ]
-        required: true
-      version:
-        description: 'Version tag to deploy'
-        required: true
-
-env:
-  JAVA_VERSION: '21'
-
-jobs:
-  # ── Stage 1: Release Build ─────────────────────────────────────
-  release-build:
-    name: Release Build & Tag
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.get-version.outputs.version }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Get version
-        id: get-version
-        run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            VERSION=${GITHUB_REF#refs/tags/v}
-          else
-            VERSION=${{ github.event.inputs.version }}
-          fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Building version: $VERSION"
-
-      - uses: actions/setup-java@v4
-        with:
-          java-version: ${{ env.JAVA_VERSION }}
-          distribution: temurin
-          cache: maven
-
-      - name: Build JARs
-        run: mvn clean package -DskipTests --no-transfer-progress
-
-      - name: Upload release JARs
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-jars-${{ steps.get-version.outputs.version }}
-          path: "*/target/*-SNAPSHOT.jar"
-
-  # ── Stage 2: Integration Tests before deploy ──────────────────
-  pre-deploy-tests:
-    name: Pre-Deploy Integration Tests
-    runs-on: ubuntu-latest
-    needs: release-build
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: capgemini_db
-          POSTGRES_USER: capuser
-          POSTGRES_PASSWORD: "Cap@2024Secure"
-        ports: [ "5432:5432" ]
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s --health-timeout 5s --health-retries 5
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          java-version: ${{ env.JAVA_VERSION }}
-          distribution: temurin
-          cache: maven
-      - name: Run all tests
-        run: mvn test --no-transfer-progress
-        env:
-          SPRING_DATASOURCE_URL:      jdbc:postgresql://localhost:5432/capgemini_db
-          SPRING_DATASOURCE_USERNAME: capuser
-          SPRING_DATASOURCE_PASSWORD: "Cap@2024Secure"
-          MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "0.0"
-
-  # ── Stage 3: Helm Deploy to Staging ───────────────────────────
-  deploy-staging:
-    name: Deploy to Staging
-    runs-on: ubuntu-latest
-    needs: pre-deploy-tests
-    environment:
-      name: staging
-      url: http://staging.microservices.local
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Helm
-        uses: azure/setup-helm@v4
-        with:
-          version: v3.14.0
-
-      - name: Helm upgrade/install to staging
-        run: |
-          helm upgrade --install microservices-staging helm/microservices/ \
-            --namespace microservices-staging \
-            --create-namespace \
-            --set global.image.tag=${{ needs.release-build.outputs.version }} \
-            --set systemApi.replicaCount=1 \
-            --set middleware.replicaCount=1 \
-            --set bffGateway.replicaCount=1 \
-            --values helm/microservices/values-staging.yaml \
-            --wait --timeout 5m \
-            --dry-run   # Remove --dry-run when real cluster available
-          echo "Helm deploy to STAGING complete"
-
-  # ── Stage 4: Smoke Tests against Staging ──────────────────────
-  smoke-tests:
-    name: Smoke Tests (Staging)
-    runs-on: ubuntu-latest
-    needs: deploy-staging
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install k6
-        run: |
-          curl https://github.com/grafana/k6/releases/download/v0.51.0/k6-v0.51.0-linux-amd64.tar.gz \
-            -L -o k6.tar.gz
-          tar -xzf k6.tar.gz
-          sudo cp k6-v0.51.0-linux-amd64/k6 /usr/local/bin/
-
-      - name: Run k6 smoke tests
-        run: |
-          k6 run k6/smoke-test.js \
-            -e BASE_URL=http://staging.microservices.local \
-            -e SYSTEM_URL=http://staging.microservices.local:8081 \
-            --out json=k6-smoke-results.json || echo "Smoke tests completed"
-
-      - name: Upload k6 results
-        uses: actions/upload-artifact@v4
-        with:
-          name: k6-smoke-results
-          path: k6-smoke-results.json
-
-  # ── Stage 5: Deploy to Production (manual approval) ───────────
-  deploy-production:
-    name: Deploy to Production
-    runs-on: ubuntu-latest
-    needs: smoke-tests
-    environment:
-      name: production
-      url: http://microservices.capgemini.com
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-    steps:
-      - uses: actions/checkout@v4
-      - uses: azure/setup-helm@v4
-        with:
-          version: v3.14.0
-
-      - name: Helm upgrade/install to production
-        run: |
-          helm upgrade --install microservices-prod helm/microservices/ \
-            --namespace microservices-training \
-            --create-namespace \
-            --set global.image.tag=${{ needs.release-build.outputs.version }} \
-            --values helm/microservices/values-production.yaml \
-            --wait --timeout 10m \
-            --dry-run   # Remove --dry-run when real cluster available
-          echo "Helm deploy to PRODUCTION complete"
-
-      - name: Create GitHub Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ needs.release-build.outputs.version }}
-          body: |
-            ## What's Changed
-            - System API: port 8081
-            - Middleware: port 8082
-            - BFF Gateway: port 8080
-            - Kafka topics: product-events, saga-events, error-events
-            - Saga pattern: CreateProductSaga
-          draft: false
-          prerelease: false
+## Day 25 — GitOps CD Pipeline: deploy to K8s via Helm
+#name: CD — GitOps Deploy
+#
+#on:
+#  push:
+#    tags: [ 'v*.*.*' ]
+#  workflow_dispatch:
+#    inputs:
+#      environment:
+#        description: 'Target environment'
+#        type: choice
+#        options: [ staging, production ]
+#        required: true
+#      version:
+#        description: 'Version tag to deploy'
+#        required: true
+#
+#env:
+#  JAVA_VERSION: '21'
+#
+#jobs:
+#  # ── Stage 1: Release Build ─────────────────────────────────────
+#  release-build:
+#    name: Release Build & Tag
+#    runs-on: ubuntu-latest
+#    outputs:
+#      version: ${{ steps.get-version.outputs.version }}
+#    steps:
+#      - uses: actions/checkout@v4
+#        with:
+#          fetch-depth: 0
+#
+#      - name: Get version
+#        id: get-version
+#        run: |
+#          if [ "${{ github.event_name }}" = "push" ]; then
+#            VERSION=${GITHUB_REF#refs/tags/v}
+#          else
+#            VERSION=${{ github.event.inputs.version }}
+#          fi
+#          echo "version=$VERSION" >> $GITHUB_OUTPUT
+#          echo "Building version: $VERSION"
+#
+#      - uses: actions/setup-java@v4
+#        with:
+#          java-version: ${{ env.JAVA_VERSION }}
+#          distribution: temurin
+#          cache: maven
+#
+#      - name: Build JARs
+#        run: mvn clean package -DskipTests --no-transfer-progress
+#
+#      - name: Upload release JARs
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: release-jars-${{ steps.get-version.outputs.version }}
+#          path: "*/target/*-SNAPSHOT.jar"
+#
+#  # ── Stage 2: Integration Tests before deploy ──────────────────
+#  pre-deploy-tests:
+#    name: Pre-Deploy Integration Tests
+#    runs-on: ubuntu-latest
+#    needs: release-build
+#    services:
+#      postgres:
+#        image: postgres:16-alpine
+#        env:
+#          POSTGRES_DB: capgemini_db
+#          POSTGRES_USER: capuser
+#          POSTGRES_PASSWORD: "Cap@2024Secure"
+#        ports: [ "5432:5432" ]
+#        options: >-
+#          --health-cmd pg_isready
+#          --health-interval 10s --health-timeout 5s --health-retries 5
+#    steps:
+#      - uses: actions/checkout@v4
+#      - uses: actions/setup-java@v4
+#        with:
+#          java-version: ${{ env.JAVA_VERSION }}
+#          distribution: temurin
+#          cache: maven
+#      - name: Run all tests
+#        run: mvn test --no-transfer-progress
+#        env:
+#          SPRING_DATASOURCE_URL:      jdbc:postgresql://localhost:5432/capgemini_db
+#          SPRING_DATASOURCE_USERNAME: capuser
+#          SPRING_DATASOURCE_PASSWORD: "Cap@2024Secure"
+#          MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "0.0"
+#
+#  # ── Stage 3: Helm Deploy to Staging ───────────────────────────
+#  deploy-staging:
+#    name: Deploy to Staging
+#    runs-on: ubuntu-latest
+#    needs: pre-deploy-tests
+#    environment:
+#      name: staging
+#      url: http://staging.microservices.local
+#    steps:
+#      - uses: actions/checkout@v4
+#
+#      - name: Install Helm
+#        uses: azure/setup-helm@v4
+#        with:
+#          version: v3.14.0
+#
+#      - name: Helm upgrade/install to staging
+#        run: |
+#          helm upgrade --install microservices-staging helm/microservices/ \
+#            --namespace microservices-staging \
+#            --create-namespace \
+#            --set global.image.tag=${{ needs.release-build.outputs.version }} \
+#            --set systemApi.replicaCount=1 \
+#            --set middleware.replicaCount=1 \
+#            --set bffGateway.replicaCount=1 \
+#            --values helm/microservices/values-staging.yaml \
+#            --wait --timeout 5m \
+#            --dry-run   # Remove --dry-run when real cluster available
+#          echo "Helm deploy to STAGING complete"
+#
+#  # ── Stage 4: Smoke Tests against Staging ──────────────────────
+#  smoke-tests:
+#    name: Smoke Tests (Staging)
+#    runs-on: ubuntu-latest
+#    needs: deploy-staging
+#    steps:
+#      - uses: actions/checkout@v4
+#
+#      - name: Install k6
+#        run: |
+#          curl https://github.com/grafana/k6/releases/download/v0.51.0/k6-v0.51.0-linux-amd64.tar.gz \
+#            -L -o k6.tar.gz
+#          tar -xzf k6.tar.gz
+#          sudo cp k6-v0.51.0-linux-amd64/k6 /usr/local/bin/
+#
+#      - name: Run k6 smoke tests
+#        run: |
+#          k6 run k6/smoke-test.js \
+#            -e BASE_URL=http://staging.microservices.local \
+#            -e SYSTEM_URL=http://staging.microservices.local:8081 \
+#            --out json=k6-smoke-results.json || echo "Smoke tests completed"
+#
+#      - name: Upload k6 results
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: k6-smoke-results
+#          path: k6-smoke-results.json
+#
+#  # ── Stage 5: Deploy to Production (manual approval) ───────────
+#  deploy-production:
+#    name: Deploy to Production
+#    runs-on: ubuntu-latest
+#    needs: smoke-tests
+#    environment:
+#      name: production
+#      url: http://microservices.capgemini.com
+#    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+#    steps:
+#      - uses: actions/checkout@v4
+#      - uses: azure/setup-helm@v4
+#        with:
+#          version: v3.14.0
+#
+#      - name: Helm upgrade/install to production
+#        run: |
+#          helm upgrade --install microservices-prod helm/microservices/ \
+#            --namespace microservices-training \
+#            --create-namespace \
+#            --set global.image.tag=${{ needs.release-build.outputs.version }} \
+#            --values helm/microservices/values-production.yaml \
+#            --wait --timeout 10m \
+#            --dry-run   # Remove --dry-run when real cluster available
+#          echo "Helm deploy to PRODUCTION complete"
+#
+#      - name: Create GitHub Release
+#        uses: actions/create-release@v1
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#        with:
+#          tag_name: ${{ github.ref }}
+#          release_name: Release ${{ needs.release-build.outputs.version }}
+#          body: |
+#            ## What's Changed
+#            - System API: port 8081
+#            - Middleware: port 8082
+#            - BFF Gateway: port 8080
+#            - Kafka topics: product-events, saga-events, error-events
+#            - Saga pattern: CreateProductSaga
+#          draft: false
+#          prerelease: false

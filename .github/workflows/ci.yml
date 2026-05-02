@@ -189,5 +189,5 @@ jobs:
         distribution: 'temurin'
 
 
-        -name: Build with Maven
-        run: mvn clean install -DskipTests
+        -name: Build Projrct
+        run: mvn -B clean install -DskipTests
