@@ -1,0 +1,25 @@
+system-api:
+  url: http://localhost:8081
+spring:
+  # DB used ONLY for log writing — no JPA, no Hibernate, just JDBC
+  datasource:
+    url: jdbc:postgresql://localhost:5432/capgemini_db
+    username: capuser
+    password: Cap@2024Secure
+    hikari:
+      maximum-pool-size: 3
+      connection-timeout: 5000
+  kafka:
+    bootstrap-servers: localhost:9092
+logging:
+  level:
+    root: INFO
+    com.capgemini.training: DEBUG
+    feign: DEBUG
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+  zipkin:
+    tracing:
+      endpoint: http://localhost:9411/api/v2/spans

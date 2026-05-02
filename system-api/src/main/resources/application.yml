@@ -1,0 +1,87 @@
+spring:
+  application:
+    name: system-api
+  profiles:
+    active: local
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        default_batch_fetch_size: 16
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    validate-on-migrate: true
+
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+  # Day 23 — Kafka
+  kafka:
+    bootstrap-servers: ${KAFKA_SERVERS:localhost:9092}
+    producer:
+      key-serializer:   org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      retries: 3
+
+kafka:
+  topics:
+    product-events:
+      partitions: 3
+      replicas: 1
+    saga-events:
+      partitions: 1
+      replicas: 1
+    error-events:
+      partitions: 1
+      replicas: 1
+
+server:
+  port: 8081
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,loggers
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: livenessState,ping
+        readiness:
+          include: readinessState,database
+  health:
+    livenessstate:  { enabled: true }
+    readinessstate: { enabled: true }
+  metrics:
+    export:
+      prometheus: { enabled: true }
+  tracing:
+    sampling:
+      probability: 1.0
+    propagation:
+      type: w3c
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_URL:http://localhost:9411/api/v2/spans}
+
+logging:
+  level:
+    root: INFO
+    com.capgemini.training: DEBUG
+    org.apache.kafka: WARN
+    org.flywaydb: INFO
+    org.hibernate.SQL: DEBUG

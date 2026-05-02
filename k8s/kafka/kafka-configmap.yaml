@@ -1,0 +1,20 @@
+# Day 26 — Kafka config (Confluent Platform standalone binary, no Docker)
+# Download: https://www.confluent.io/installation/
+# This configmap documents the configuration used in K8s context
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-config
+  namespace: microservices-training
+data:
+  # Kafka broker properties — mirrors config/server.properties
+  KAFKA_BOOTSTRAP_SERVERS: "localhost:9092"
+  KAFKA_AUTO_CREATE_TOPICS: "true"
+  KAFKA_NUM_PARTITIONS: "3"
+  KAFKA_REPLICATION_FACTOR: "1"
+  KAFKA_LOG_DIRS: "/tmp/kafka-logs"
+  KAFKA_ZOOKEEPER_CONNECT: "localhost:2181"
+  # Topics
+  PRODUCT_EVENTS_TOPIC: "product-events"
+  SAGA_EVENTS_TOPIC: "saga-events"
+  ERROR_EVENTS_TOPIC: "error-events"

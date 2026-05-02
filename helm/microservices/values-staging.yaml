@@ -1,0 +1,24 @@
+# Day 27 — Staging environment overrides
+global:
+  image:
+    tag: "latest"
+
+systemApi:
+  replicaCount: 1
+  autoscaling:
+    enabled: false
+  resources:
+    requests: { memory: "128Mi", cpu: "100m" }
+    limits:   { memory: "256Mi", cpu: "250m" }
+
+middleware:
+  replicaCount: 1
+  resources:
+    requests: { memory: "128Mi", cpu: "100m" }
+    limits:   { memory: "256Mi", cpu: "250m" }
+
+bffGateway:
+  replicaCount: 1
+  resources:
+    requests: { memory: "128Mi", cpu: "100m" }
+    limits:   { memory: "256Mi", cpu: "250m" }

@@ -1,0 +1,19 @@
+# Day 27 — Production environment overrides
+global:
+  image:
+    pullPolicy: Always
+
+systemApi:
+  replicaCount: 3
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+
+middleware:
+  replicaCount: 3
+
+bffGateway:
+  replicaCount: 3
+  service:
+    type: LoadBalancer

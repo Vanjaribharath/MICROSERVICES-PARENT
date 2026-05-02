@@ -1,0 +1,34 @@
+# Local dev — no Redis, no Keycloak
+middleware:
+  url: http://localhost:8082
+system-api:
+  url: http://localhost:8081
+jwt:
+  secret: capgemini-training-secret-key-256-bits-minimum-length-here
+  expiration-seconds: 3600
+redis:
+  rate-limiter:
+    enabled: false
+cors:
+  allowed-origins: http://localhost:3000,http://localhost:4200,http://localhost:5173
+# Suppress Redis connection error on startup
+spring:
+  # DB used ONLY for log writing — no JPA, no Hibernate, just JDBC
+  datasource:
+    url: jdbc:postgresql://localhost:5432/capgemini_db
+    username: capuser
+    password: Cap@2024Secure
+    hikari:
+      maximum-pool-size: 3
+      connection-timeout: 5000
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisReactiveAutoConfiguration
+logging:
+  level:
+    root: INFO
+    com.capgemini.training: DEBUG
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.security: INFO
+

@@ -1,0 +1,111 @@
+spring:
+  application:
+    name: bff-gateway
+  profiles:
+    active: local
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      repositories:
+        enabled: false    # Prevent Spring Data Redis from scanning for @Repository
+
+  # Day 16 — Spring Cloud Gateway routes
+  cloud:
+    gateway:
+      routes:
+        # Route 1: Catalog enrichment → Middleware
+        - id: middleware-catalog
+          uri: ${middleware.url:http://localhost:8082}
+          predicates:
+            - Path=/api/v1/catalog/**
+          filters:
+            - AddRequestHeader=X-Gateway-Source, bff-gateway
+
+        # Route 2: Product CRUD → Middleware (delegates to system-api)
+        - id: middleware-products
+          uri: ${middleware.url:http://localhost:8082}
+          predicates:
+            - Path=/api/v1/products/**
+          filters:
+            - AddRequestHeader=X-Gateway-Source, bff-gateway
+
+        # Route 3: Categories → System API direct
+        - id: system-api-categories
+          uri: ${system-api.url:http://localhost:8081}
+          predicates:
+            - Path=/api/v1/categories/**
+          filters:
+            - AddRequestHeader=X-Gateway-Source, bff-gateway
+
+        # Route 4: Suppliers → System API direct
+        - id: system-api-suppliers
+          uri: ${system-api.url:http://localhost:8081}
+          predicates:
+            - Path=/api/v1/suppliers/**
+
+      default-filters:
+        - AddResponseHeader=X-Served-By, bff-gateway
+
+server:
+  port: 8080
+  shutdown: graceful
+
+# Day 17 — JWT config (symmetric HMAC-SHA256)
+jwt:
+  secret: ${JWT_SECRET:capgemini-training-secret-key-256-bits-minimum-length-here}
+  expiration-seconds: ${JWT_EXPIRATION:3600}
+
+# Day 18 — Rate limiter toggle (disabled in local)
+redis:
+  rate-limiter:
+    enabled: ${REDIS_RATE_LIMITER_ENABLED:false}
+
+cors:
+  allowed-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:4200}
+
+middleware:
+  url: ${MIDDLEWARE_URL:http://localhost:8082}
+system-api:
+  url: ${SYSTEM_API_URL:http://localhost:8081}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,gateway,loggers
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: livenessState,ping
+        readiness:
+          include: readinessState,middleware
+  health:
+    livenessstate:  { enabled: true }
+    readinessstate: { enabled: true }
+    redis:
+      enabled: false    # Don't include Redis in health checks (optional feature)
+  metrics:
+    export:
+      prometheus: { enabled: true }
+  tracing:
+    sampling:
+      probability: 1.0
+    propagation:
+      type: w3c
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_URL:http://localhost:9411/api/v2/spans}
+
+logging:
+  level:
+    root: INFO
+    com.capgemini.training: DEBUG
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.security: INFO

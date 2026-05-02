@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Day 19 — Structured JSON logging with Logstash encoder.
+  Day 21 — traceId + spanId from Micrometer OTel automatically added to MDC.
+  DB Appender writes: correlationId, traceId, spanId to application_logs table.
+  No AsyncAppender — synchronous to guarantee MDC captured correctly.
+-->
+<configuration>
+  <springProperty name="APP" source="spring.application.name" defaultValue="system-api"/>
+  <springProperty name="LEVEL" source="logging.level.root" defaultValue="INFO"/>
+
+  <!-- JSON Console (ELK-ready) -->
+  <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+      <includeMdcKeyName>correlationId</includeMdcKeyName>
+      <includeMdcKeyName>traceId</includeMdcKeyName>
+      <includeMdcKeyName>spanId</includeMdcKeyName>
+      <customFields>{"service":"${APP}"}</customFields>
+      <fieldNames>
+        <timestamp>timestamp</timestamp>
+        <message>message</message>
+        <logger>logger</logger>
+        <thread>thread</thread>
+        <levelValue>[ignore]</levelValue>
+      </fieldNames>
+    </encoder>
+  </appender>
+
+  <!-- DB Appender — synchronous — writes correlationId+traceId+spanId to application_logs -->
+  <appender name="DATABASE"
+            class="com.capgemini.training.systemapi.config.DatabaseLogAppender">
+    <serviceName>${APP}</serviceName>
+    <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+      <level>INFO</level>
+    </filter>
+  </appender>
+
+  <logger name="com.capgemini.training" level="DEBUG" additivity="false">
+    <appender-ref ref="JSON_CONSOLE"/>
+    <appender-ref ref="DATABASE"/>
+  </logger>
+  <logger name="org.apache.kafka.clients" level="WARN"/>
+  <logger name="org.hibernate" level="WARN"/>
+  <logger name="com.zaxxer.hikari" level="INFO"/>
+  <logger name="org.flywaydb" level="INFO"/>
+
+  <root level="${LEVEL}">
+    <appender-ref ref="JSON_CONSOLE"/>
+    <appender-ref ref="DATABASE"/>
+  </root>
+</configuration>

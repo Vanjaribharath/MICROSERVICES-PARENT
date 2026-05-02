@@ -1,0 +1,11 @@
+spring:
+  jpa:
+    show-sql: true
+management:
+  tracing:
+    sampling:
+      probability: 0.0
+logging:
+  level:
+    root: WARN
+    com.capgemini.training: DEBUG

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  BFF Gateway logging — JSON console + DB appender.
+  All logs with correlationId, traceId, spanId written to shared capgemini_db.
+  JDBC does NOT conflict with reactive gateway — only spring-boot-starter-web does.
+-->
+<configuration>
+  <springProperty name="APP" source="spring.application.name" defaultValue="bff-gateway"/>
+  <springProperty name="LEVEL" source="logging.level.root" defaultValue="INFO"/>
+
+  <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+      <includeMdcKeyName>correlationId</includeMdcKeyName>
+      <includeMdcKeyName>traceId</includeMdcKeyName>
+      <includeMdcKeyName>spanId</includeMdcKeyName>
+      <customFields>{"service":"${APP}"}</customFields>
+    </encoder>
+  </appender>
+
+  <!-- DB Appender — writes correlationId+traceId+spanId to application_logs -->
+  <appender name="DATABASE"
+            class="com.capgemini.training.bffgateway.config.DatabaseLogAppender">
+    <serviceName>${APP}</serviceName>
+    <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+      <level>INFO</level>
+    </filter>
+  </appender>
+
+  <logger name="com.capgemini.training" level="DEBUG" additivity="false">
+    <appender-ref ref="JSON_CONSOLE"/>
+    <appender-ref ref="DATABASE"/>
+  </logger>
+  <logger name="reactor.netty" level="WARN"/>
+  <logger name="io.netty" level="WARN"/>
+  <logger name="org.springframework.security" level="INFO"/>
+  <logger name="com.zaxxer.hikari" level="INFO"/>
+
+  <root level="${LEVEL}">
+    <appender-ref ref="JSON_CONSOLE"/>
+    <appender-ref ref="DATABASE"/>
+  </root>
+</configuration>

@@ -1,0 +1,86 @@
+spring:
+  application:
+    name: middleware
+  profiles:
+    active: local
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  kafka:
+    bootstrap-servers: ${KAFKA_SERVERS:localhost:9092}
+    consumer:
+      group-id: middleware-group
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer:   org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+server:
+  port: 8082
+  shutdown: graceful
+
+system-api:
+  url: ${SYSTEM_API_URL:http://localhost:8081}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      systemApi:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+  retry:
+    instances:
+      systemApi:
+        maxAttempts: 3
+        waitDuration: 500ms
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+  bulkhead:
+    instances:
+      systemApi:
+        maxConcurrentCalls: 20
+        maxWaitDuration: 100ms
+  timelimiter:
+    instances:
+      systemApi:
+        timeoutDuration: 5s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,loggers,circuitbreakers,retries
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: livenessState,ping
+        readiness:
+          include: readinessState,systemApi
+  health:
+    livenessstate:  { enabled: true }
+    readinessstate: { enabled: true }
+  metrics:
+    export:
+      prometheus: { enabled: true }
+  tracing:
+    sampling:
+      probability: 1.0
+    propagation:
+      type: w3c
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_URL:http://localhost:9411/api/v2/spans}
+
+logging:
+  level:
+    root: INFO
+    com.capgemini.training: DEBUG
+    feign: DEBUG
+    org.apache.kafka: WARN

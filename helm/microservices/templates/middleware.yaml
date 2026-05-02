@@ -1,0 +1,69 @@
+# Day 27 — Helm template for middleware
+{{- if .Values.middleware.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: middleware
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: middleware
+    {{- include "microservices.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.middleware.replicaCount }}
+  selector:
+    matchLabels:
+      app: middleware
+  template:
+    metadata:
+      labels:
+        app: middleware
+    spec:
+      containers:
+        - name: middleware
+          image: "{{ .Values.global.image.registry }}/middleware:{{ .Values.global.image.tag }}"
+          imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+          ports:
+            - containerPort: 8082
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "k8s"
+            - name: SYSTEM_API_URL
+              value: "http://system-api:8081"
+            - name: KAFKA_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+            - name: ZIPKIN_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: ZIPKIN_URL
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8082
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8082
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.middleware.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: middleware
+  namespace: {{ .Values.global.namespace }}
+spec:
+  selector:
+    app: middleware
+  ports:
+    - port: {{ .Values.middleware.service.port }}
+      targetPort: {{ .Values.middleware.service.port }}
+  type: ClusterIP
+{{- end }}

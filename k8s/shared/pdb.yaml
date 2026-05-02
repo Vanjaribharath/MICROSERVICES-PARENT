@@ -1,0 +1,33 @@
+# Day 27 — PodDisruptionBudget: ensures at least 1 pod available during rolling update
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: system-api-pdb
+  namespace: microservices-training
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: system-api
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: middleware-pdb
+  namespace: microservices-training
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: middleware
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: bff-gateway-pdb
+  namespace: microservices-training
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: bff-gateway

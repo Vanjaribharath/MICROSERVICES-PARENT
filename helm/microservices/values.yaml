@@ -1,0 +1,54 @@
+# Day 27 — Default values for all services
+global:
+  image:
+    registry: capgemini
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  namespace: microservices-training
+
+systemApi:
+  enabled: true
+  replicaCount: 2
+  image:
+    name: system-api
+  service:
+    port: 8081
+  resources:
+    requests: { memory: "256Mi", cpu: "250m" }
+    limits:   { memory: "512Mi", cpu: "500m" }
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+middleware:
+  enabled: true
+  replicaCount: 2
+  image:
+    name: middleware
+  service:
+    port: 8082
+  resources:
+    requests: { memory: "256Mi", cpu: "250m" }
+    limits:   { memory: "512Mi", cpu: "500m" }
+
+bffGateway:
+  enabled: true
+  replicaCount: 2
+  image:
+    name: bff-gateway
+  service:
+    port: 8080
+    type: LoadBalancer
+  resources:
+    requests: { memory: "256Mi", cpu: "250m" }
+    limits:   { memory: "512Mi", cpu: "500m" }
+
+postgres:
+  url: "jdbc:postgresql://postgres:5432/training_db"
+  username: appuser
+  password: secret
+
+zipkin:
+  url: "http://zipkin:9411/api/v2/spans"

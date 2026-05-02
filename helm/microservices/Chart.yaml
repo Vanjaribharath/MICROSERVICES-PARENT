@@ -1,0 +1,14 @@
+# Day 27 — Helm chart for deploying all 3 microservices
+apiVersion: v2
+name: microservices-training
+description: Capgemini 30-Day Microservices Training Helm Chart
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - microservices
+  - spring-boot
+  - java
+maintainers:
+  - name: Capgemini Training
+    email: training@capgemini.com

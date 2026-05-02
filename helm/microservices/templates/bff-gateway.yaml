@@ -1,0 +1,71 @@
+# Day 27 — Helm template for bff-gateway
+{{- if .Values.bffGateway.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bff-gateway
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: bff-gateway
+    {{- include "microservices.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.bffGateway.replicaCount }}
+  selector:
+    matchLabels:
+      app: bff-gateway
+  template:
+    metadata:
+      labels:
+        app: bff-gateway
+    spec:
+      containers:
+        - name: bff-gateway
+          image: "{{ .Values.global.image.registry }}/bff-gateway:{{ .Values.global.image.tag }}"
+          imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "k8s"
+            - name: MIDDLEWARE_URL
+              value: "http://middleware:8082"
+            - name: SYSTEM_API_URL
+              value: "http://system-api:8081"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secret
+                  key: jwt-secret-key
+            - name: ZIPKIN_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: ZIPKIN_URL
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.bffGateway.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bff-gateway
+  namespace: {{ .Values.global.namespace }}
+spec:
+  selector:
+    app: bff-gateway
+  ports:
+    - port: 80
+      targetPort: 8080
+  type: {{ .Values.bffGateway.service.type }}
+{{- end }}

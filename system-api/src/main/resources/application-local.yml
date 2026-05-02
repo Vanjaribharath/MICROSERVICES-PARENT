@@ -1,0 +1,31 @@
+# ── LOCAL PROFILE — system-api ────────────────────────────────────
+# DB: capgemini_db  |  User: capuser  |  Pass: Cap@2024Secure
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/capgemini_db
+    username: capuser
+    password: "Cap@2024Secure"
+    hikari:
+      pool-name: SystemApiPool-Local
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 20000
+  jpa:
+    show-sql: true
+  kafka:
+    bootstrap-servers: localhost:9092
+
+logging:
+  level:
+    root: INFO
+    com.capgemini.training: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.apache.kafka: WARN
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0   # 100% trace in local dev
+  zipkin:
+    tracing:
+      endpoint: http://localhost:9411/api/v2/spans

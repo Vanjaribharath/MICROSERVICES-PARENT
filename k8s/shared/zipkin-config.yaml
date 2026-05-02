@@ -1,0 +1,14 @@
+# Day 21 — Zipkin tracing config
+# For K8s: run Zipkin as standalone JAR on a dedicated node
+# wget https://search.maven.org/remote_content?g=io.zipkin&a=zipkin-server&v=LATEST&c=exec -O zipkin.jar
+# java -jar zipkin.jar
+# In K8s, this would be a deployment. Without Docker, use host-based installation.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zipkin-config
+  namespace: microservices-training
+data:
+  ZIPKIN_ENDPOINT: "http://zipkin-service:9411/api/v2/spans"
+  STORAGE_TYPE: "mem"  # Use elasticsearch in production
+  QUERY_PORT: "9411"

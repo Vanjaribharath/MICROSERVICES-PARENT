@@ -1,0 +1,11 @@
+# Day 27 — Helm ConfigMap template
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: {{ .Values.global.namespace }}
+data:
+  ZIPKIN_URL:               "http://zipkin:9411/api/v2/spans"
+  SYSTEM_API_URL:           "http://system-api:8081"
+  MIDDLEWARE_URL:           "http://middleware:8082"
+  KAFKA_BOOTSTRAP_SERVERS:  "localhost:9092"
