@@ -191,3 +191,4 @@ jobs:
 
       - name: Build Project
         run: mvn -B clean install -DskipTests
+

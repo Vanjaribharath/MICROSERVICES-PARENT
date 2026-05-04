@@ -1,0 +1,64 @@
+{
+  "title": "Capgemini Microservices — Day 20 Dashboard",
+  "description": "RED metrics: Rate, Errors, Duration for all 3 services + Kafka + Saga",
+  "panels": [
+    {
+      "title": "HTTP Request Rate (all services)",
+      "type": "graph",
+      "targets": [
+        {"expr": "rate(http_server_requests_seconds_count[1m])", "legendFormat": "{{application}} {{uri}}"}
+      ]
+    },
+    {
+      "title": "HTTP Error Rate",
+      "type": "graph",
+      "targets": [
+        {"expr": "rate(http_server_requests_seconds_count{status=~'5..'}[1m])", "legendFormat": "{{application}} errors"}
+      ]
+    },
+    {
+      "title": "P95 Response Time",
+      "type": "graph",
+      "targets": [
+        {"expr": "histogram_quantile(0.95, rate(http_server_requests_seconds_bucket[5m]))", "legendFormat": "p95 {{application}}"}
+      ]
+    },
+    {
+      "title": "Products Created (Kafka events)",
+      "type": "stat",
+      "targets": [
+        {"expr": "products_created_total", "legendFormat": "Total products"}
+      ]
+    },
+    {
+      "title": "Saga Completion Rate",
+      "type": "stat",
+      "targets": [
+        {"expr": "saga_completed_total", "legendFormat": "Completed"},
+        {"expr": "saga_failed_total",    "legendFormat": "Failed"}
+      ]
+    },
+    {
+      "title": "Kafka Events Published",
+      "type": "graph",
+      "targets": [
+        {"expr": "rate(kafka_events_published_total[1m])", "legendFormat": "Published/sec"},
+        {"expr": "rate(kafka_events_failed_total[1m])",    "legendFormat": "Failed/sec"}
+      ]
+    },
+    {
+      "title": "Circuit Breaker State",
+      "type": "table",
+      "targets": [
+        {"expr": "resilience4j_circuitbreaker_state", "legendFormat": "{{name}} {{state}}"}
+      ]
+    },
+    {
+      "title": "JVM Memory (system-api)",
+      "type": "graph",
+      "targets": [
+        {"expr": "jvm_memory_used_bytes{application='system-api'}", "legendFormat": "{{area}}"}
+      ]
+    }
+  ]
+}

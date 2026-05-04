@@ -1,0 +1,30 @@
+# Day 20 — Prometheus scrape configuration
+# Download Prometheus: https://prometheus.io/download/
+# Run: ./prometheus --config.file=prometheus.yml
+# Access: http://localhost:9090
+
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster:     'local-dev'
+    environment: 'development'
+
+scrape_configs:
+  - job_name: 'system-api'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['localhost:8081']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+
+  - job_name: 'middleware'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['localhost:8082']
+
+  - job_name: 'bff-gateway'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['localhost:8080']
